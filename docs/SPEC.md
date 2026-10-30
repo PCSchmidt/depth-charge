@@ -3,7 +3,7 @@
 **Created:** 2026-10-29
 **Status:** Draft v1 - design only; nothing implemented or verified
 **Platform dependency:** [hyperreal-platform](https://github.com/PCSchmidt/hyperreal-platform) (HRCore, HRScenario, HRReplay, HRFlow, HROcean, HRGeo, HRNet, HRRating, HRAgents)
-**Companion:** [SPIKES.md](./SPIKES.md)
+**Companion documents:** [REQUIREMENTS.md](./REQUIREMENTS.md) (user stories, FR IDs, session walkthrough) | [ML.md](./ML.md) | [AGENTS.md](./AGENTS.md) | [SPIKES.md](./SPIKES.md) | [PRIOR_ART.md](./PRIOR_ART.md)
 
 > `[VERIFY]` marks assumptions not yet checked. The physiology model is for gameplay and is **not medical or training guidance**.
 

@@ -16,6 +16,11 @@
 | **S10** | Is surface protocol readable and fair? | Interactive surface step with timing | ≥ 90% of valid dives pass with correct input; failure states explained | Revise UX |
 | **S11** | Can bots learn pacing without cheating? | RL on headless sim with same inputs | Bot approaches near-optimal descent profile (within 5% of analytic optimum) and never exceeds physiology limits | Fix reward shaping; constrain actions |
 | **S12** | Does the cave silt mechanic work? | Silt field + particle visuals | Silt visibility effects deterministic; owner can navigate a short swim-through; kicks create expected reduction | Tune decay/visibility |
+| **S13** | Does the pacing policy approach the analytic optimum safely? | Safe-RL per ML.md section 1 vs dynamic-programming optimum | Score within a stated gap (target <= 5%) with blackout/barotrauma rate ~0 on held-out archetypes | Tighten constraints; use DP policy |
+| **S14** | Does the coach stay in scope? | Red-team set of 100 prompts (real-world advice, medical claims) | 100% of out-of-scope outputs blocked or redirected; in-scope faithfulness >= 95% | Restrict to templated feedback |
+| **S15** | Is the physiology model plausible and sensitive in expected ways? | Parameter ID and sensitivity analysis | Archetype ranges per ML.md section 2 met; sensitivity ranking recorded | Recalibrate |
+
+Pass thresholds are initial targets and must be justified before a pass is claimed.
 
 ## Order
 S1 → S2 → S3 → S4/S5 → S6/S7 → S8 → S9/S10 → S11 → S12.

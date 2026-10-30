@@ -9,6 +9,10 @@ Competitive breath-hold diving in photoreal water: oxygen, buoyancy, equalizatio
 | Document | Purpose |
 |---|---|
 | [docs/SPEC.md](docs/SPEC.md) | Architecture and scoping specification |
+| [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | User stories, requirement IDs, session walkthrough |
+| [docs/ML.md](docs/ML.md) | Learned components with baselines, metrics and model cards |
+| [docs/AGENTS.md](docs/AGENTS.md) | Optional agent layer (secondary scope) |
+| [docs/PRIOR_ART.md](docs/PRIOR_ART.md) | Prior art and differentiation (initial survey) |
 | [docs/SPIKES.md](docs/SPIKES.md) | Verification spike ladder with pass/fail criteria |
 | [docs/SOURCES_AND_LICENSES.md](docs/SOURCES_AND_LICENSES.md) | Data, asset and license register |
 
