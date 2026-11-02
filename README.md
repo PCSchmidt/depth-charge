@@ -4,10 +4,11 @@ Competitive breath-hold diving in photoreal water: oxygen, buoyancy, equalizatio
 
 **Build order: fourth title (optional, unscheduled).**
 
-**Status:** Specification stage - design only; no code, no engine project, nothing verified yet.
+**Status:** C0 headless model built (pure Python, deterministic): spikes S1, S2, S7 and S8 pass as written, with caveats; no client, no engine project, nothing played by a human yet. See [docs/spike-results/C0-headless-model.md](docs/spike-results/C0-headless-model.md).
 
 | Document | Purpose |
 |---|---|
+| [docs/spike-results/C0-headless-model.md](docs/spike-results/C0-headless-model.md) | C0 evidence: S1, S2, S7, S8 results and caveats |
 | [docs/SPEC.md](docs/SPEC.md) | Architecture and scoping specification |
 | [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | User stories, requirement IDs, session walkthrough |
 | [docs/ML.md](docs/ML.md) | Learned components with baselines, metrics and model cards |
@@ -17,6 +18,13 @@ Competitive breath-hold diving in photoreal water: oxygen, buoyancy, equalizatio
 | [docs/SOURCES_AND_LICENSES.md](docs/SOURCES_AND_LICENSES.md) | Data, asset and license register |
 
 Part of the hyperreal competitive games collection: [hyperreal-platform](https://github.com/PCSchmidt/hyperreal-platform), [horizon-line](https://github.com/PCSchmidt/horizon-line), [gale-force](https://github.com/PCSchmidt/gale-force), [dark-fleet](https://github.com/PCSchmidt/dark-fleet), [depth-charge](https://github.com/PCSchmidt/depth-charge).
+
+## Try the headless model
+```
+cd python
+python -m pytest tests -q          # 32 tests
+python tools/s8.py --n 5000         # determinism check
+```
 
 **Engine:** Unreal Engine 5.x (version pinned at project creation). **Large assets** are kept out of git (see platform ADR 0003). **Shared code:** the platform repo as a submodule.
 
