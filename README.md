@@ -4,7 +4,7 @@ Competitive breath-hold diving in photoreal water: oxygen, buoyancy, equalizatio
 
 **Build order: fourth title (optional, unscheduled).**
 
-**Status:** C0 headless model built (pure Python, deterministic): spikes S1, S2, S7 and S8 pass as written, with caveats; no client, no engine project, nothing played by a human yet. See [docs/spike-results/C0-headless-model.md](docs/spike-results/C0-headless-model.md).
+**Status:** C0 headless model built (pure Python, deterministic): spikes S1, S2, S7 and S8 pass as written, with caveats. A first playable Constant Weight client (C1, 2D side view, guided practice dive, ghost) exists but has **not been played by a human or viewed in a browser yet**; no engine project. See [docs/spike-results/C0-headless-model.md](docs/spike-results/C0-headless-model.md).
 
 | Document | Purpose |
 |---|---|
@@ -25,6 +25,14 @@ cd python
 python -m pytest tests -q          # 32 tests
 python tools/s8.py --n 5000         # determinism check
 ```
+
+## Play it (C1, prototype)
+```
+cd python
+python -m depthcharge.play.server --port 8791
+# open http://127.0.0.1:8791/ and press 'Guided practice dive'
+```
+Keys: Space kick (Shift harder), E equalize when the ear gauge is green, G grab the tag, T turn, B breathe at the surface, M/O/V surface protocol, P pause. The translucent diver is a scripted ghost on the same dive. Standard library only; the server binds to localhost.
 
 **Engine:** Unreal Engine 5.x (version pinned at project creation). **Large assets** are kept out of git (see platform ADR 0003). **Shared code:** the platform repo as a submodule.
 

@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Depth Charge - Constant Weight dive</title>
+<style>
+  :root { --bg:#0b1620; --panel:#14212e; --line:#27394c; --text:#dbe6f2; --dim:#8aa0b6; --good:#6fe3a0; --warn:#ffc15e; --bad:#ff6b6b; --acc:#5cc8ff; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:14px/1.4 system-ui,Segoe UI,sans-serif; display:flex; height:100vh; }
+  #stage { flex:1; min-width:0; position:relative; }
+  canvas#cv { width:100%; height:100%; display:block; }
+  #side { width:370px; background:var(--panel); border-left:1px solid var(--line); overflow:auto; padding:12px; }
+  h1 { font-size:15px; margin:0 0 6px; } h2 { font-size:12px; margin:14px 0 6px; color:var(--dim); text-transform:uppercase; letter-spacing:.06em; }
+  button, select, input { background:#0b1620; color:var(--text); border:1px solid var(--line); border-radius:4px; padding:5px 8px; font:inherit; }
+  button { cursor:pointer; } button:hover:not(:disabled) { border-color:var(--acc); } button:disabled { opacity:.45; cursor:default; }
+  button.primary { background:#1d4e89; border-color:#2b6cb0; }
+  .row { display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin:4px 0; }
+  .dim { color:var(--dim); } .good { color:var(--good); } .bad { color:var(--bad); }
+  .card { border:1px solid var(--line); border-radius:4px; padding:7px 9px; margin:6px 0; background:#0f1b27; font-size:13px; }
+  #coach { border-color:#ffd166; } #coach.urgent { border-color:var(--bad); background:#2a1414; }
+  #hud { position:absolute; left:12px; top:12px; background:rgba(8,16,24,.78); border:1px solid var(--line); border-radius:6px; padding:8px 12px; font:15px/1.5 ui-monospace,Consolas,monospace; min-width:190px; }
+  #gauges { position:absolute; right:14px; top:12px; display:flex; gap:12px; }
+  .gauge { background:rgba(8,16,24,.78); border:1px solid var(--line); border-radius:6px; padding:6px 8px; text-align:center; font-size:11px; color:var(--dim); }
+  .bar { position:relative; width:26px; height:170px; margin:4px auto; border:1px solid var(--line); border-radius:3px; overflow:hidden; background:#07111a; }
+  .zone { position:absolute; left:0; right:0; } .mark { position:absolute; left:-2px; right:-2px; height:3px; background:#fff; }
+  #toast { position:absolute; left:50%; bottom:22px; transform:translateX(-50%); background:rgba(8,16,24,.85); border:1px solid var(--line); border-radius:6px; padding:6px 14px; font-size:14px; }
+  kbd { background:#0b1620; border:1px solid var(--line); border-bottom-width:2px; border-radius:3px; padding:0 5px; font:12px ui-monospace,Consolas,monospace; }
+  table.keys td { padding:1px 6px 1px 0; vertical-align:top; font-size:13px; }
+  #plot { width:100%; height:150px; background:#07111a; border:1px solid var(--line); border-radius:4px; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="cv" aria-label="Side view of the dive"></canvas>
+  <div id="hud"></div>
+  <div id="gauges">
+    <div class="gauge">EARS<div class="bar" id="earbar"><div class="zone" style="bottom:0;height:12%;background:#555"></div><div class="zone" style="bottom:12%;height:35%;background:#2d9d63"></div><div class="zone" style="bottom:47%;height:28%;background:#b8860b"></div><div class="zone" style="bottom:75%;height:25%;background:#a33"></div><div class="mark" id="earmark"></div></div>press <kbd>E</kbd><br>in green</div>
+    <div class="gauge">URGE<div class="bar"><div class="zone" id="urgefill" style="bottom:0;height:0;background:#4aa3df"></div></div>to breathe</div>
+  </div>
+  <div id="toast" hidden></div>
+</div>
+<div id="side">
+  <h1>Depth Charge</h1>
+  <div class="dim">An entertainment simulation. It is not training and not medical guidance. Never practise breath-hold diving alone or without training and supervision.</div>
+
+  <h2>Start here</h2>
+  <div class="row"><button id="guided" class="primary">Guided practice dive (20 m)</button></div>
+  <div class="dim">A fixed first dive with step-by-step hints and a ghost diver to race.</div>
+  <details><summary class="dim">What is this game?</summary><div class="card">Constant Weight: swim down a line on one breath, grab a tag at the depth you announced, turn, swim back, and pass the surface protocol. Your body is the resource: oxygen runs out (you cannot see it), the urge to breathe rises (you can feel it), your ears need equalizing as pressure builds, and your weighting decides when you start to fall by yourself. A blackout is a failure, not a goal. The translucent diver is a scripted ghost playing the same dive.</div></details>
+
+  <div id="coachBox" class="card" hidden><b id="coachTitle"></b><div id="coachText"></div></div>
+
+  <h2>Controls</h2>
+  <table class="keys">
+    <tr><td><kbd>Space</kbd></td><td>kick (hold) &nbsp; <kbd>Shift</kbd>+<kbd>Space</kbd> harder</td></tr>
+    <tr><td><kbd>E</kbd></td><td>equalize ears when the gauge is green</td></tr>
+    <tr><td><kbd>G</kbd></td><td>grab the tag (at the announced depth)</td></tr>
+    <tr><td><kbd>T</kbd></td><td>turn head-down / head-up (3 s)</td></tr>
+    <tr><td><kbd>B</kbd></td><td>breathe (at the surface)</td></tr>
+    <tr><td><kbd>M</kbd> <kbd>O</kbd> <kbd>V</kbd></td><td>surface protocol: mask, OK sign, speak</td></tr>
+    <tr><td><kbd>P</kbd></td><td>pause</td></tr>
+  </table>
+
+  <h2>Your own dive</h2>
+  <div class="row">
+    <label>Diver <select id="arch"><option>novice</option><option selected>trained</option><option>elite</option></select></label>
+    <label>Announce <input id="depth" type="number" value="20" min="5" max="40" style="width:60px"> m</label>
+  </div>
+  <div class="row"><label>Lead <input id="lead" type="number" value="1.2" min="0" max="8" step="0.1" style="width:60px"> kg</label>
+    <label>Speed <select id="speed"><option value="1">1x</option><option value="2">2x</option><option value="4">4x</option></select></label>
+    <button id="start">Start dive</button></div>
+  <div class="dim" id="neutral"></div>
+  <div class="dim">More lead: you start to fall sooner but the climb is harder. The right weighting is part of the skill.</div>
+
+  <h2>Dive log</h2><div id="log" class="dim"></div>
+  <div id="debrief" hidden></div>
+</div>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const cv = $("cv"), ctx = cv.getContext("2d");
+let lastT = 0, S = null, ghost = [], running = false, paused = false, busy = false, speed = 1, shake = 0;
+const keys = new Set(); let want = { dir: 1 }, pulses = {};
+
+async function api(method, path, body) {
+  const r = await fetch(path, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+  const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status); return j;
+}
+function resize() { cv.width = cv.clientWidth; cv.height = cv.clientHeight; draw(); }
+addEventListener("resize", resize);
+
+async function newDive(body) {
+  try {
+    const st = await api("POST", "/api/new", body); ghost = st.ghost || []; speed = +$("speed").value;
+    want = { dir: 1 }; pulses = {}; paused = false; running = true; lastT = 0; ingest(st); $("start").textContent = "Restart"; loop();
+  } catch (e) { $("log").textContent = "error: " + e.message; }
+}
+$("guided").onclick = () => newDive({ guided: true });
+$("start").onclick = () => newDive({ archetype: $("arch").value, depth: +$("depth").value, lead: +$("lead").value });
+
+async function loop() {
+  if (!running) return;
+  if (!paused && !busy && S && !S.observation.ended) {
+    busy = true;
+    const now = performance.now(), el = Math.min(0.3, (now - (lastT || now)) / 1000 || 0.1); lastT = now;
+    const n = Math.max(1, Math.round(el * speed / S.scenario.dt));
+    const f = keys.has("Space") ? 0.8 : 0, a = keys.has("Space") ? (keys.has("Shift") ? 1.0 : 0.7) : 0;
+    const change = { dir: want.dir, f, a, ...pulses }; pulses = {};
+    if (keys.has("KeyB")) change.breathe = true;
+    try { ingest(await api("POST", "/api/step", { n, change })); } catch (e) { $("log").textContent = "error: " + e.message; running = false; }
+    busy = false;
+  }
+  if (S && S.observation.ended) { running = false; return; }
+  setTimeout(loop, 100);
+}
+
+addEventListener("keydown", e => {
+  if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
+  if (e.code === "Space") e.preventDefault();
+  if (e.repeat) return;
+  keys.add(e.code); if (e.key === "Shift") keys.add("Shift");
+  const m = { KeyE: "equalize", KeyG: "grab_tag", KeyM: "remove_mask", KeyO: "ok_sign", KeyV: "speak_ok" }[e.code];
+  if (m) pulses[m] = true;
+  if (e.code === "KeyT" && S) want.dir = (S.observation.dir === 1 ? -1 : 1);
+  if (e.code === "KeyP") { paused = !paused; lastT = 0; }
+});
+addEventListener("keyup", e => { keys.delete(e.code); if (e.key === "Shift") keys.delete("Shift"); });
+
+function ingest(st) { S = st; render(); }
+
+function render() {
+  const o = S.observation, sc = S.scenario;
+  const min = Math.floor(o.t / 60), sec = (o.t % 60).toFixed(0).padStart(2, "0");
+  $("hud").innerHTML = `depth <b>${o.depth_m.toFixed(1)}</b> m<br>speed ${Math.abs(o.vertical_speed_mps).toFixed(2)} m/s ${o.vertical_speed_mps > 0.05 ? "&darr;" : o.vertical_speed_mps < -0.05 ? "&uarr;" : ""}<br>time ${min}:${sec}<br>tag ${sc.announced_depth_m} m ${o.has_tag ? "<span class=good>(got it)</span>" : ""}<br>` +
+    (o.net_up_n > 3 ? "<span class=dim>floating</span>" : o.net_up_n < -3 ? "<span class=dim>sinking</span>" : "<span class=dim>neutral</span>") + (o.turning ? " &middot; turning" : "");
+  const ex = o.ear_excess, pct = Math.min(1, Math.max(0, ex / 0.2)) * 100;
+  $("earmark").style.bottom = `calc(${pct}% - 1px)`;
+  $("urgefill").style.height = Math.min(100, o.urge / 1.2 * 100) + "%";
+  $("neutral").textContent = sc.neutral_depth_m ? `Neutral depth with this weighting: about ${sc.neutral_depth_m.toFixed(1)} m.` : "";
+  const cb = $("coachBox");
+  if (S.coach) { cb.hidden = false; cb.className = "card" + (S.coach.urgent ? " urgent" : ""); cb.style.borderColor = S.coach.urgent ? "#ff6b6b" : "#ffd166"; $("coachTitle").textContent = S.coach.title; $("coachText").textContent = S.coach.text; } else cb.hidden = true;
+  $("log").textContent = S.events.map(([t, k]) => `${t.toFixed(0)} s  ${k}`).join("\n") + `\nequalizations ${S.eq.ok} ok, ${S.eq.failed} failed`;
+  const ev = S.events.length ? S.events[S.events.length - 1][1] : "";
+  const toast = $("toast"); toast.hidden = !(o.contractions && !o.ended); toast.textContent = o.contractions ? "Contractions: your body is asking for air." : "";
+  shake = o.contractions ? 1 + o.urge * 2 : 0;
+  const d = S.debrief, box = $("debrief");
+  if (d) {
+    box.hidden = false; box.replaceChildren();
+    const add = (t, cls) => { const p = document.createElement("div"); p.className = "card " + (cls || ""); p.textContent = t; box.appendChild(p); };
+    add(`${d.outcome.toUpperCase()}   score ${d.score.toFixed(0)}   time ${d.time_s} s`, d.outcome === "success" ? "good" : "bad");
+    add(d.plain);
+    add(`Ghost: ${d.ghost.outcome} in ${d.ghost.time_s} s.   Replay verified by re-simulation: ${d.verified ? "yes" : "NO"}.`);
+    add(`Equalization: ${d.eq.ok} ok, ${d.eq.failed} failed, ${d.eq.early} too early, ${d.eq.locked} locked. Lowest oxygen pressure ${d.min_pao2} atm (blackout below 0.04, samba below 0.06${d.samba ? "; samba penalty applied" : ""}).`);
+    const c = document.createElement("canvas"); c.id = "plot"; box.appendChild(c); plot(c, d.samples);
+    const note = document.createElement("div"); note.className = "dim"; note.textContent = "White: depth. Blue: urge to breathe. Orange: true oxygen pressure (hidden during the dive)."; box.appendChild(note);
+  } else box.hidden = true;
+  draw();
+}
+function plot(c, s) {
+  c.width = c.clientWidth || 340; c.height = 150; const g = c.getContext("2d");
+  if (!s.length) return; const T = s[s.length - 1][0] || 1, Z = Math.max(5, ...s.map(r => r[1]));
+  const X = t => 8 + t / T * (c.width - 16);
+  const line = (col, fy) => { g.strokeStyle = col; g.beginPath(); s.forEach((r, i) => { const x = X(r[0]), y = 140 - fy(r) * 125; i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke(); };
+  line("#fff", r => 1 - r[1] / Z); line("#4aa3df", r => Math.min(1, r[2])); line("#ffa94d", r => Math.min(1, r[3] / 0.15));
+  g.fillStyle = "#8aa0b6"; g.font = "10px sans-serif"; g.fillText("0 m", 2, 14); g.fillText(Z.toFixed(0) + " m", 2, 140);
+}
+
+// ---- drawing -----------------------------------------------------------------------------------------
+function waterColor(z) { const k = Math.min(1, Math.max(0, z / 40)); const r = Math.round(30 - 28 * k), g = Math.round(150 - 135 * k), b = Math.round(190 - 150 * k); return `rgb(${r},${g},${b})`; }
+function ghostDepthAt(t) { for (let i = 1; i < ghost.length; i++) if (ghost[i][0] >= t) { const [t0, z0] = ghost[i - 1], [t1, z1] = ghost[i]; return z0 + (z1 - z0) * (t - t0) / ((t1 - t0) || 1); } return ghost.length ? ghost[ghost.length - 1][1] : null; }
+function draw() {
+  const W = cv.width, H = cv.height; ctx.clearRect(0, 0, W, H);
+  if (!S) { ctx.fillStyle = "#0b1620"; ctx.fillRect(0, 0, W, H); ctx.fillStyle = "#8aa0b6"; ctx.font = "18px sans-serif"; ctx.fillText("Press 'Guided practice dive' to begin.", 40, 60); return; }
+  const o = S.observation, z = o.depth_m, span = 38, ppm = H / span, top = z - 15;
+  const Y = d => (d - top) * ppm, cx = W * 0.5 + (shake ? (Math.random() - .5) * shake : 0);
+  const grd = ctx.createLinearGradient(0, 0, 0, H); const a = top, b = top + span;
+  grd.addColorStop(0, waterColor(Math.max(0, a))); grd.addColorStop(1, waterColor(Math.max(0, b))); ctx.fillStyle = grd; ctx.fillRect(0, 0, W, H);
+  if (top < 0) { ctx.fillStyle = "#cfe9f5"; ctx.fillRect(0, 0, W, Y(0)); ctx.fillStyle = "rgba(255,255,255,.55)"; ctx.fillRect(0, Y(0) - 2, W, 3); }
+  ctx.font = "11px sans-serif";
+  for (let m = Math.max(0, Math.ceil(top / 5) * 5); m <= top + span; m += 5) { const y = Y(m); ctx.strokeStyle = "rgba(255,255,255,.12)"; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); ctx.fillStyle = "rgba(255,255,255,.55)"; ctx.fillText(m + " m", 8, y - 3); }
+  ctx.strokeStyle = "#e8e0c8"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(cx + 46, Math.max(0, Y(0))); ctx.lineTo(cx + 46, H); ctx.stroke(); ctx.lineWidth = 1;
+  const ty = Y(S.scenario.announced_depth_m);
+  ctx.fillStyle = o.has_tag ? "#555" : "#ff9f1c"; ctx.fillRect(cx + 38, ty - 7, 16, 14); ctx.fillStyle = "#fff"; ctx.fillText("TAG " + S.scenario.announced_depth_m + " m", cx + 60, ty + 4);
+  const gz = ghost.length ? ghostDepthAt(o.t) : null;
+  if (gz !== null) { const gz2 = ghostDepthAt(o.t + 1); person(cx - 38, Y(gz), gz2 < gz - 0.05 ? 1 : 0, 0.28, "ghost"); }
+  const ang = o.turning ? 0 : (o.dir === 1 ? 0 : 1); person(cx, Y(z), ang, 1, "you");
+  const tv = o.tunnel_vision; if (tv > 0) { const r = Math.max(70, Math.min(W, H) * (0.75 - 0.6 * tv)); const v = ctx.createRadialGradient(W / 2, Y(z), r * 0.5, W / 2, Y(z), r * 1.6); v.addColorStop(0, "rgba(0,0,0,0)"); v.addColorStop(1, "rgba(0,0,0,.96)"); ctx.fillStyle = v; ctx.fillRect(0, 0, W, H); }
+}
+function person(x, y, up, alpha, label) {
+  ctx.save(); ctx.globalAlpha = alpha; ctx.translate(x, y); if (up) ctx.rotate(Math.PI);
+  ctx.fillStyle = "#101820"; ctx.fillRect(-6, -18, 12, 30); ctx.fillStyle = "#f1c27d"; ctx.beginPath(); ctx.arc(0, 16, 6, 0, 7); ctx.fill();
+  ctx.fillStyle = "#101820"; ctx.fillRect(-8, -30, 6, 14); ctx.fillRect(2, -30, 6, 14); ctx.restore();
+  if (label === "ghost") { ctx.fillStyle = "rgba(255,255,255,.6)"; ctx.font = "11px sans-serif"; ctx.fillText("ghost", x + 14, y); }
+}
+resize();
+</script>
+</body>
+</html>
