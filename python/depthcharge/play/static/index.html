@@ -53,7 +53,7 @@
 
   <h2>Controls</h2>
   <table class="keys">
-    <tr><td><kbd>Space</kbd></td><td>kick (hold) &nbsp; <kbd>Shift</kbd>+<kbd>Space</kbd> harder</td></tr>
+    <tr><td><kbd>Space</kbd></td><td>kick (hold) &nbsp; <kbd>K</kbd> harder (hold with or instead of Space)</td></tr>
     <tr><td><kbd>E</kbd></td><td>equalize ears when the gauge is green</td></tr>
     <tr><td><kbd>G</kbd></td><td>grab the tag (at the announced depth)</td></tr>
     <tr><td><kbd>T</kbd></td><td>turn head-down / head-up (3 s)</td></tr>
@@ -105,7 +105,8 @@ async function loop() {
     busy = true;
     const now = performance.now(), el = Math.min(0.3, (now - (lastT || now)) / 1000 || 0.1); lastT = now;
     const n = Math.max(1, Math.round(el * speed / S.scenario.dt));
-    const f = keys.has("Space") ? 0.8 : 0, a = keys.has("Space") ? (shiftDown ? 1.0 : 0.7) : 0;
+    const kick = keys.has("Space") || keys.has("KeyK");
+    const f = kick ? 0.8 : 0, a = kick ? (keys.has("KeyK") ? 1.0 : 0.7) : 0;
     const change = { dir: want.dir, f, a, ...pulses }; pulses = {};
     if (keys.has("KeyB")) change.breathe = true;
     try { ingest(await api("POST", "/api/step", { n, change })); } catch (e) { $("log").textContent = "error: " + e.message; running = false; }
@@ -115,19 +116,18 @@ async function loop() {
   setTimeout(loop, 100);
 }
 
-let shiftDown = false;
 addEventListener("keydown", e => {
   if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
   if (e.code === "Space") e.preventDefault();
   if (e.repeat) return;
-  shiftDown = e.shiftKey; keys.add(e.code);
+  keys.add(e.code);
   const m = { KeyE: "equalize", KeyG: "grab_tag", KeyM: "remove_mask", KeyO: "ok_sign", KeyV: "speak_ok" }[e.code];
   if (m) pulses[m] = true;
   if (e.code === "KeyT" && S) want.dir = (S.observation.dir === 1 ? -1 : 1);
   if (e.code === "KeyP") { paused = !paused; lastT = 0; }
 });
-addEventListener("keyup", e => { if (e.code === "Space") e.preventDefault(); shiftDown = e.shiftKey; keys.delete(e.code); });
-addEventListener("blur", () => { keys.clear(); shiftDown = false; });
+addEventListener("keyup", e => { if (e.code === "Space") e.preventDefault(); keys.delete(e.code); });
+addEventListener("blur", () => { keys.clear(); });
 
 function ingest(st) { S = st; render(); }
 

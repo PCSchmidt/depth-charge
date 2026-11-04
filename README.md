@@ -32,7 +32,7 @@ cd python
 python -m depthcharge.play.server --port 8791
 # open http://127.0.0.1:8791/ and press 'Guided practice dive'
 ```
-Keys: Space kick (Shift harder), E equalize when the ear gauge is green, G grab the tag, T turn, B breathe at the surface, M/O/V surface protocol, P pause. The translucent diver is a scripted ghost on the same dive. Standard library only; the server binds to localhost.
+Keys: Space kick (K harder kick), E equalize when the ear gauge is green, G grab the tag, T turn, B breathe at the surface, M/O/V surface protocol, P pause. The translucent diver is a scripted ghost on the same dive. Standard library only; the server binds to localhost.
 
 **Engine:** Unreal Engine 5.x (version pinned at project creation). **Large assets** are kept out of git (see platform ADR 0003). **Shared code:** the platform repo as a submodule.
 

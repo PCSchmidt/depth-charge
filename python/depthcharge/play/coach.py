@@ -23,7 +23,7 @@ def coach(ob: dict, announced_m: float, neutral_m: float | None) -> dict:
         return {"title": "Equalize", "urgent": ex >= 0.09, "text": "The ear gauge is in the green. Press E to equalize. Too early (grey zone) wastes the press; too late (red) risks pain."}
     if z < 1.0 and ob["dir"] == 1 and not ob["has_tag"] and ob["t"] < 1.0:
         return {"title": "1. Dive", "urgent": False,
-                "text": "Hold Space to kick down; hold Shift too for a harder kick. Near the surface you float, so kick hard until you pass your neutral depth."}
+                "text": "Hold Space to kick down; hold K for a harder kick. Near the surface you float, so kick hard until you pass your neutral depth."}
     if ob["dir"] == 1 and not ob["has_tag"]:
         if z >= announced_m - 3.0:
             return {"title": "3. Reach the tag", "urgent": False,
