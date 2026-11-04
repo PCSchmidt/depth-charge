@@ -26,6 +26,10 @@ EAR_PAIN = 0.12              # ambient/ear pressure ratio excess at which equali
 EAR_LOCK = 0.20              # beyond this the tubes lock: equalizing is impossible
 EAR_INJURY = 0.35            # beyond this the dive ends (barotrauma)
 PROTOCOL = (("remove_mask", 15.0), ("ok_sign", 20.0), ("speak_ok", 30.0))   # (step, deadline in s after surfacing)
+POOL_Z = 0.6                 # m: dynamic swimmers hold a fixed trim just under the surface (buoyancy trimmed out)
+PUSH_OFF = 1.0               # m/s given by the wall after a dynamic turn
+DISCIPLINES = ("CWT", "FIM", "CNF", "DYN", "STA")
+DISCIPLINE_LEAD = {"CWT": 1.2, "FIM": 2.5, "CNF": 3.0, "DYN": 0.0, "STA": 0.0}   # default weighting per discipline (kg)
 MAX_ANNOUNCED_M = 40.0       # lung squeeze is not modelled (SPEC 3.2), so the depth is capped where lungs reach ~1.2 L
 
 
@@ -52,8 +56,10 @@ ARCHETYPES = {
 class Scenario:
     seed: int = 1
     archetype: str = "trained"
-    discipline: str = "CWT"          # "CWT" or "STA"
+    discipline: str = "CWT"          # CWT, FIM, CNF, DYN or STA
     announced_depth_m: float = 20.0
+    announced_distance_m: float = 75.0   # DYN only
+    pool_m: float = 50.0                 # DYN only: pool length
     lead_kg: float = 1.2
     dt: float = 0.05                 # s; the spec asks for 5-10 ms, 50 ms keeps the Python prototype fast (see docs)
     max_time_s: float = 600.0
@@ -62,8 +68,10 @@ class Scenario:
     def validate(self) -> None:
         if self.archetype not in ARCHETYPES:
             raise ValueError(f"archetype must be one of {sorted(ARCHETYPES)}")
-        if self.discipline not in ("CWT", "STA"):
-            raise ValueError("discipline must be CWT or STA")
+        if self.discipline not in DISCIPLINES:
+            raise ValueError(f"discipline must be one of {DISCIPLINES}")
+        if self.discipline == "DYN" and not (25.0 <= self.announced_distance_m <= 300.0 and 10.0 <= self.pool_m <= 100.0):
+            raise ValueError("DYN: distance 25-300 m, pool 10-100 m")
         if not 5.0 <= self.announced_depth_m <= MAX_ANNOUNCED_M:
             raise ValueError(f"announced depth must be 5-{MAX_ANNOUNCED_M:.0f} m")
         if not 0.0 <= self.lead_kg <= 8.0:
@@ -73,7 +81,7 @@ class Scenario:
 
 
 DEFAULT_CONTROLS = {"dir": 1, "f": 0.0, "a": 0.0, "streamline": True, "face_down": False}
-PULSES = ("equalize", "breathe", "grab_tag", "remove_mask", "ok_sign", "speak_ok")   # one-tick actions, never persistent
+PULSES = ("equalize", "breathe", "grab_tag", "remove_mask", "ok_sign", "speak_ok", "finish")   # one-tick actions, never persistent
 
 
 @dataclass
@@ -85,6 +93,8 @@ class Dive:
     v: float = 0.0
     dir: int = 1
     turn_lock: float = 0.0
+    x: float = 0.0                       # DYN: position along the pool
+    dist: float = 0.0                    # DYN: distance swum
     o2: float = 0.0
     co2: float = C0
     stress: float = 0.0
@@ -116,6 +126,9 @@ class Dive:
         self.v_lung = self.arch.lung_l / 1000.0
         self.mass_eff = M.BODY_MASS + M.SUIT_MASS + self.sc.lead_kg + M.ADDED_MASS
         self.c_cont = C0 + 0.6 * (self.arch.c_break_mmhg - C0)
+        self.stroke = M.STROKES[self.sc.discipline]
+        if self.sc.discipline == "DYN":
+            self.z, self.went_deep = POOL_Z, True
 
     # ---- derived, player-visible quantities --------------------------------------------------------------
     @property
@@ -147,7 +160,7 @@ class Dive:
                 "tunnel_vision": min(1.0, max(0.0, (0.09 - self.pao2()) / 0.05)), "net_up_n": self.net_up_n(),
                 "turning": self.turn_lock > 0.0, "turn_left_s": round(self.turn_lock, 2), "surfaced": self.surfaced_at is not None,
                 "protocol_next": step, "protocol_left_s": left, "stress": self.stress,
-                "ended": self.ended, "outcome": self.outcome}
+                "x_m": self.x, "distance_m": self.dist, "ended": self.ended, "outcome": self.outcome}
 
     def truth(self) -> dict:
         return {"o2_ml": self.o2, "co2": self.co2, "pao2_atm": self.pao2(), "fatigue": self.fatigue, "min_pao2": self.min_pao2}
@@ -176,24 +189,40 @@ class Dive:
                     raise ValueError(f"unknown control {k!r}")
         c = self.controls
         want_dir = 1 if c["dir"] >= 0 else -1
-        if want_dir != self.dir and self.turn_lock <= 0.0:
+        dyn = sc.discipline == "DYN"
+        at_wall = (self.x >= sc.pool_m - 0.3 and self.dir == 1) or (self.x <= 0.3 and self.dir == -1)
+        if want_dir != self.dir and self.turn_lock <= 0.0 and (not dyn or at_wall):
             self.dir, self.turn_lock = want_dir, TURN_S
+        was_turning = self.turn_lock > 0.0
         self.turn_lock = max(0.0, self.turn_lock - dt)
         turning = self.turn_lock > 0.0
+        if dyn and was_turning and not turning:
+            self.v = self.dir * PUSH_OFF            # push off the wall
         on_surface = self.z <= 0.3
 
         # -- propulsion and motion (1-D along the line) --
         f, a = min(max(float(c["f"]), 0.0), 1.6), min(max(float(c["a"]), 0.0), 1.0)
-        thrust = 0.0 if turning else M.kick_thrust(arch.thrust_max_n, f, a, self.fatigue) * (0.7 if self.urge_limit else 1.0)
+        thrust = 0.0 if turning else M.kick_thrust(arch.thrust_max_n, f, a, self.fatigue, self.stroke) * (0.7 if self.urge_limit else 1.0)
         effort = 0.0 if turning else a * f
         cda = M.CDA_STREAMLINED if (c["streamline"] and not turning) else M.CDA_BROADSIDE
-        down = -self.net_up_n() + self.dir * thrust - M.drag(self.v, cda, sc.rho)
-        self.v += down / self.mass_eff * dt
-        self.z += self.v * dt
-        if self.z < 0.0:
-            self.z, self.v = 0.0, max(self.v, 0.0)
-        if self.z > 1.0:
-            self.went_deep = True
+        if dyn:
+            if self.surfaced_at is None:           # horizontal swim at fixed trim; after "finish" the diver floats still
+                self.v += (self.dir * thrust - M.drag(self.v, cda, sc.rho)) / self.mass_eff * dt
+                dx = self.v * dt
+                self.x += dx
+                self.dist += abs(dx)
+                if self.x >= sc.pool_m:
+                    self.x, self.v = sc.pool_m, min(self.v, 0.0)
+                elif self.x <= 0.0:
+                    self.x, self.v = 0.0, max(self.v, 0.0)
+        else:
+            down = -self.net_up_n() + self.dir * thrust - M.drag(self.v, cda, sc.rho)
+            self.v += down / self.mass_eff * dt
+            self.z += self.v * dt
+            if self.z < 0.0:
+                self.z, self.v = 0.0, max(self.v, 0.0)
+            if self.z > 1.0:
+                self.went_deep = True
         self.t += dt
         self.tick += 1
 
@@ -254,7 +283,7 @@ class Dive:
         p = self.pao2()
         if self.went_deep:
             self.min_pao2 = min(self.min_pao2, p)
-        if self.has_tag and self.dir == -1 and p < SAMBA_PAO2 and not self.samba:
+        if self.has_tag and (self.dir == -1 or dyn) and p < SAMBA_PAO2 and not self.samba:
             self.samba = True
             self._event("samba")
         if p < BLACKOUT_PAO2:
@@ -264,12 +293,16 @@ class Dive:
         if sc.discipline == "STA":
             if self.urge_limit:
                 return self._end("static_break", self.t)
+        elif dyn:
+            self._dyn_rules(pulses)
         else:
             self._cwt_rules(pulses)
         if not self.ended and self.t >= sc.max_time_s:
             self._end("timeout")
         if self.tick % 20 == 0:
             self._h.update(struct.pack("<7d", self.t, self.z, self.v, self.o2, self.co2, self.stress, self.p_ear))
+            if dyn:
+                self._h.update(struct.pack("<2d", self.x, self.dist))
 
     def _cwt_rules(self, pulses: dict) -> None:
         sc = self.sc
@@ -283,18 +316,37 @@ class Dive:
                 if not self.has_tag:
                     self._end("no_tag")
             return
+        self._protocol(pulses, sc.announced_depth_m)
+
+    def _protocol(self, pulses: dict, base_score: float) -> None:
         step, deadline = PROTOCOL[self.protocol_done]
         if pulses.get(step):
             self.protocol_done += 1
             self._event(f"protocol_{step}")
             if self.protocol_done == len(PROTOCOL):
-                self._end("success", max(0.0, sc.announced_depth_m - (10.0 if self.samba else 0.0)))
+                self._end("success", max(0.0, base_score - (10.0 if self.samba else 0.0)))
         elif self.t - self.surfaced_at > deadline:
             self._end("protocol_failed")
+
+    def _dyn_rules(self, pulses: dict) -> None:
+        sc = self.sc
+        if not self.has_tag and self.dist >= sc.announced_distance_m:
+            self.has_tag = True                      # "goal reached": the announced distance is covered
+            self._event("goal")
+        if self.surfaced_at is None:
+            if pulses.get("finish"):
+                self.surfaced_at, self.z, self.v = self.t, 0.0, 0.0
+                self._event("surfaced")
+                if not self.has_tag:
+                    self._end("short")
+            return
+        self._protocol(pulses, self.dist)
 
     def digest(self) -> str:
         h = self._h.copy()
         h.update(struct.pack("<7d", self.t, self.z, self.v, self.o2, self.co2, self.stress, self.p_ear))
+        if self.sc.discipline == "DYN":
+            h.update(struct.pack("<2d", self.x, self.dist))
         h.update(repr((self.outcome, self.score, self.events)).encode())
         return h.hexdigest()[:16]
 

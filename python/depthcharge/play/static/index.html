@@ -58,6 +58,7 @@
     <tr><td><kbd>E</kbd></td><td>equalize ears when the gauge is green</td></tr>
     <tr><td><kbd>G</kbd></td><td>grab the tag (at the announced depth)</td></tr>
     <tr><td><kbd>T</kbd></td><td>turn head-down / head-up (1.5 s), then hold K to swim</td></tr>
+    <tr><td><kbd>F</kbd></td><td>Dynamic only: finish the swim and surface</td></tr>
     <tr><td><kbd>B</kbd></td><td>breathe (at the surface)</td></tr>
     <tr><td><kbd>M</kbd> <kbd>O</kbd> <kbd>V</kbd></td><td>surface protocol: mask, OK sign, speak</td></tr>
     <tr><td><kbd>P</kbd></td><td>pause</td></tr>
@@ -65,8 +66,9 @@
 
   <h2>Your own dive</h2>
   <div class="row">
+    <label>Discipline <select id="disc"><option value="CWT" selected>Constant Weight (fins)</option><option value="FIM">Free Immersion (pull the line)</option><option value="CNF">Constant No-Fins (breaststroke)</option><option value="DYN">Dynamic (pool distance)</option></select></label>
     <label>Diver <select id="arch"><option>novice</option><option selected>trained</option><option>elite</option></select></label>
-    <label>Announce <input id="depth" type="number" value="20" min="5" max="40" style="width:60px"> m</label>
+    <label><span id="annLabel">Announce depth</span> <input id="depth" type="number" value="20" min="5" max="40" style="width:60px"> m</label>
   </div>
   <div class="row"><label>Lead <input id="lead" type="number" value="1.2" min="0" max="8" step="0.1" style="width:60px"> kg</label>
     <label>Speed <select id="speed"><option value="1">1x</option><option value="2">2x</option><option value="4">4x</option></select></label>
@@ -98,7 +100,9 @@ async function newDive(body) {
   } catch (e) { $("log").textContent = "error: " + e.message; }
 }
 $("guided").onclick = () => newDive({ guided: true });
-$("start").onclick = () => newDive({ archetype: $("arch").value, depth: +$("depth").value, lead: +$("lead").value });
+const LEAD = { CWT: 1.2, FIM: 2.5, CNF: 3.0, DYN: 0 }, ANN = { CWT: [20, 5, 40, "Announce depth"], FIM: [20, 5, 40, "Announce depth"], CNF: [15, 5, 40, "Announce depth"], DYN: [75, 25, 300, "Announce distance"] };
+$("disc").onchange = () => { const d = $("disc").value, a = ANN[d]; $("lead").value = LEAD[d]; $("depth").value = a[0]; $("depth").min = a[1]; $("depth").max = a[2]; $("annLabel").textContent = a[3]; };
+$("start").onclick = () => { const d = $("disc").value; newDive({ archetype: $("arch").value, discipline: d, depth: +$("depth").value, distance: +$("depth").value, lead: +$("lead").value }); };
 
 async function loop() {
   if (!running) return;
@@ -107,7 +111,7 @@ async function loop() {
     const now = performance.now(), el = Math.min(0.3, (now - (lastT || now)) / 1000 || 0.1); lastT = now;
     const n = Math.max(1, Math.round(el * speed / S.scenario.dt));
     const kick = keys.has("Space") || keys.has("KeyK");
-    const f = kick ? 0.8 : 0, a = kick ? (keys.has("KeyK") ? 1.0 : 0.7) : 0;
+    const f = kick ? S.scenario.stroke_f : 0, a = kick ? (keys.has("KeyK") ? 1.0 : 0.7) : 0;
     const change = { dir: want.dir, f, a, ...pulses }; pulses = {};
     if (keys.has("KeyB")) change.breathe = true;
     try { ingest(await api("POST", "/api/step", { n, change })); } catch (e) { $("log").textContent = "error: " + e.message; running = false; }
@@ -122,21 +126,25 @@ addEventListener("keydown", e => {
   if (e.code === "Space") e.preventDefault();
   if (e.repeat) return;
   keys.add(e.code);
-  const m = { KeyE: "equalize", KeyG: "grab_tag", KeyM: "remove_mask", KeyO: "ok_sign", KeyV: "speak_ok" }[e.code];
+  const m = { KeyE: "equalize", KeyG: "grab_tag", KeyM: "remove_mask", KeyO: "ok_sign", KeyV: "speak_ok", KeyF: "finish" }[e.code];
   if (m) pulses[m] = true;
-  if (e.code === "KeyT" && S) want.dir = (S.observation.dir === 1 ? -1 : 1);
+  if (e.code === "KeyT" && S && (S.scenario.discipline !== "DYN" || atWall(S.observation))) want.dir = (S.observation.dir === 1 ? -1 : 1);
   if (e.code === "KeyP") { paused = !paused; lastT = 0; }
 });
 addEventListener("keyup", e => { if (e.code === "Space") e.preventDefault(); keys.delete(e.code); });
 addEventListener("blur", () => { keys.clear(); });
 
+function atWall(o) { const P = S.scenario.pool_m; return (o.x_m >= P - 0.3 && o.dir === 1) || (o.x_m <= 0.3 && o.dir === -1); }
 function ingest(st) { S = st; render(); }
 
 function render() {
   const o = S.observation, sc = S.scenario;
   const min = Math.floor(o.t / 60), sec = (o.t % 60).toFixed(0).padStart(2, "0");
-  $("hud").innerHTML = `depth <b>${o.depth_m.toFixed(1)}</b> m<br>speed ${Math.abs(o.vertical_speed_mps).toFixed(2)} m/s ${o.vertical_speed_mps > 0.05 ? "&darr;" : o.vertical_speed_mps < -0.05 ? "&uarr;" : ""}<br>time ${min}:${sec}<br>tag ${sc.announced_depth_m} m ${o.has_tag ? "<span class=good>(got it)</span>" : ""}<br>` +
+  if (sc.discipline === "DYN") {
+    $("hud").innerHTML = `distance <b>${o.distance_m.toFixed(0)}</b> / ${sc.announced_distance_m} m<br>speed ${Math.abs(o.vertical_speed_mps).toFixed(2)} m/s<br>time ${min}:${sec}` + (o.turning ? ` &middot; turning ${o.turn_left_s.toFixed(1)} s` : "") + (o.distance_m >= sc.announced_distance_m ? "<br><span class=good>goal reached: F to finish</span>" : "");
+  } else $("hud").innerHTML = `depth <b>${o.depth_m.toFixed(1)}</b> m<br>speed ${Math.abs(o.vertical_speed_mps).toFixed(2)} m/s ${o.vertical_speed_mps > 0.05 ? "&darr;" : o.vertical_speed_mps < -0.05 ? "&uarr;" : ""}<br>time ${min}:${sec}<br>tag ${sc.announced_depth_m} m ${o.has_tag ? "<span class=good>(got it)</span>" : ""}<br>` +
     (o.net_up_n > 3 ? "<span class=dim>floating</span>" : o.net_up_n < -3 ? "<span class=dim>sinking</span>" : "<span class=dim>neutral</span>") + (o.turning ? ` &middot; turning ${o.turn_left_s.toFixed(1)} s` : "");
+  document.querySelector("#gauges .gauge").style.display = sc.discipline === "DYN" ? "none" : "";
   const ex = o.ear_excess, pct = Math.min(1, Math.max(0, ex / 0.2)) * 100;
   $("earmark").style.bottom = `calc(${pct}% - 1px)`;
   $("urgefill").style.height = Math.min(100, o.urge / 1.2 * 100) + "%";
@@ -163,7 +171,7 @@ function render() {
     add(`Ghost: ${d.ghost.outcome} in ${d.ghost.time_s} s.   Replay verified by re-simulation: ${d.verified ? "yes" : "NO"}.`);
     add(`Equalization: ${d.eq.ok} ok, ${d.eq.failed} failed, ${d.eq.early} too early, ${d.eq.locked} locked. Lowest oxygen pressure ${d.min_pao2} atm (blackout below 0.04, samba below 0.06${d.samba ? "; samba penalty applied" : ""}).`);
     const c = document.createElement("canvas"); c.id = "plot"; box.appendChild(c); plot(c, d.samples);
-    const note = document.createElement("div"); note.className = "dim"; note.textContent = "White: depth. Blue: urge to breathe. Orange: true oxygen pressure (hidden during the dive)."; box.appendChild(note);
+    const note = document.createElement("div"); note.className = "dim"; note.textContent = "White: depth (or distance in Dynamic). Blue: urge to breathe. Orange: true oxygen pressure (hidden during the dive)."; box.appendChild(note);
   } else box.hidden = true;
   draw();
 }
@@ -179,8 +187,26 @@ function plot(c, s) {
 // ---- drawing -----------------------------------------------------------------------------------------
 function waterColor(z) { const k = Math.min(1, Math.max(0, z / 40)); const r = Math.round(30 - 28 * k), g = Math.round(150 - 135 * k), b = Math.round(190 - 150 * k); return `rgb(${r},${g},${b})`; }
 function ghostDepthAt(t) { for (let i = 1; i < ghost.length; i++) if (ghost[i][0] >= t) { const [t0, z0] = ghost[i - 1], [t1, z1] = ghost[i]; return z0 + (z1 - z0) * (t - t0) / ((t1 - t0) || 1); } return ghost.length ? ghost[ghost.length - 1][1] : null; }
+function ghostAt(t) { return ghostDepthAt(t); }
+function drawPool() {
+  const W = cv.width, H = cv.height, o = S.observation, P = S.scenario.pool_m, m = 60, L = W - 2 * m, X = x => m + x / P * L, y0 = H * 0.45;
+  ctx.fillStyle = "#0b1620"; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = "#cfe9f5"; ctx.fillRect(m - 8, y0 - 70, L + 16, 70);
+  ctx.fillStyle = "#1e90b8"; ctx.fillRect(m, y0, L, 150); ctx.fillStyle = "#34495e"; ctx.fillRect(m - 8, y0 - 70, 8, 220); ctx.fillRect(m + L, y0 - 70, 8, 220);
+  ctx.fillStyle = "rgba(255,255,255,.7)"; ctx.fillRect(m, y0 - 2, L, 3);
+  ctx.font = "11px sans-serif"; ctx.fillStyle = "rgba(255,255,255,.7)";
+  for (let k = 0; k <= P; k += 10) { ctx.fillText(k + " m", X(k) - 10, y0 + 164); ctx.fillStyle = "rgba(255,255,255,.25)"; ctx.fillRect(X(k), y0, 1, 150); ctx.fillStyle = "rgba(255,255,255,.7)"; }
+  const gz = ghost.length ? ghostAt(o.t) : null;
+  const swimmer = (x, a, label) => { ctx.save(); ctx.globalAlpha = a; ctx.translate(X(x), y0 + 40); ctx.rotate(o.dir === 1 ? -Math.PI / 2 : Math.PI / 2);
+    ctx.fillStyle = "#101820"; ctx.fillRect(-6, -18, 12, 30); ctx.fillStyle = "#f1c27d"; ctx.beginPath(); ctx.arc(0, 16, 6, 0, 7); ctx.fill(); ctx.restore();
+    if (label) { ctx.fillStyle = "rgba(255,255,255,.75)"; ctx.fillText(label, X(x) - 10, y0 + 88); } };
+  if (gz !== null) swimmer(gz, 0.28, "ghost");
+  swimmer(o.x_m, 1, "you");
+  const tv = o.tunnel_vision; if (tv > 0) { const r = Math.max(70, Math.min(W, H) * (0.75 - 0.6 * tv)); const v = ctx.createRadialGradient(X(o.x_m), y0 + 40, r * 0.5, X(o.x_m), y0 + 40, r * 1.6); v.addColorStop(0, "rgba(0,0,0,0)"); v.addColorStop(1, "rgba(0,0,0,.96)"); ctx.fillStyle = v; ctx.fillRect(0, 0, W, H); }
+}
 function draw() {
   const W = cv.width, H = cv.height; ctx.clearRect(0, 0, W, H);
+  if (S && S.scenario.discipline === "DYN") return drawPool();
   if (!S) { ctx.fillStyle = "#0b1620"; ctx.fillRect(0, 0, W, H); ctx.fillStyle = "#8aa0b6"; ctx.font = "18px sans-serif"; ctx.fillText("Press 'Guided practice dive' to begin.", 40, 60); return; }
   const o = S.observation, z = o.depth_m, span = 38, ppm = H / span, top = z - 15;
   const Y = d => (d - top) * ppm, cx = W * 0.5 + (shake ? (Math.random() - .5) * shake : 0);

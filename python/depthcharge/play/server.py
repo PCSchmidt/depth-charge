@@ -4,7 +4,7 @@
 
     GET  /               the client
     GET  /api/state      current state
-    POST /api/new        {"guided"?: bool, "archetype"?, "depth"?, "lead"?, "seed"?}  -> state + ghost path
+    POST /api/new        {"guided"?: bool, "archetype"?, "discipline"?: CWT|FIM|CNF|DYN, "depth"?, "distance"?, "lead"?, "seed"?}  -> state + ghost path
     POST /api/step       {"n": ticks, "change": {controls and pulses}}
     GET  /api/replay     controls log and digest (only after the dive has ended)
 """
@@ -33,7 +33,7 @@ class App:
             if method == "POST" and path == "/api/new":
                 try:
                     self.session = new_session(str(body.get("archetype", "trained")), body.get("depth", 20.0), body.get("lead", 1.2),
-                                               body.get("seed"), bool(body.get("guided", False)))
+                                               body.get("seed"), bool(body.get("guided", False)), str(body.get("discipline", "CWT")), body.get("distance", 75.0))
                 except (ValueError, TypeError) as e:
                     return 400, {"error": str(e)}, "application/json"
                 return 200, {**self.session.state(), "ghost": self.session.ghost}, "application/json"

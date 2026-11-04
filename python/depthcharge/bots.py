@@ -57,3 +57,42 @@ class ScriptedDiver:
 def static_hold(ob: dict) -> dict | None:
     """Static apnea: face down, motionless."""
     return {"face_down": True, "f": 0.0, "a": 0.0} if ob["tick"] == 0 else None
+
+
+@dataclass
+class DynDiver:
+    """Dynamic apnea in a pool: swim at a steady speed, turn at the walls, finish once the announced distance is covered."""
+    announced_distance_m: float
+    pool_m: float = 50.0
+    speed_mps: float = 0.9
+    kick_f: float = 0.8
+    extra_m: float = 0.0            # swim this far past the announced distance before finishing
+    protocol_delay_s: float = 3.0
+
+    def __post_init__(self):
+        self._last = None
+
+    def __call__(self, ob: dict) -> dict | None:
+        if ob["surfaced"]:
+            out: dict = {"breathe": True, "f": 0.0, "a": 0.0}
+            step = ob["protocol_next"]
+            if self._last is None:
+                self._last = ob["t"]
+            if step is not None and ob["t"] - self._last >= self.protocol_delay_s:
+                out[step] = True
+                self._last = ob["t"]
+            return out
+        if ob["distance_m"] >= self.announced_distance_m + self.extra_m:
+            return {"finish": True, "f": 0.0, "a": 0.0}
+        v = abs(ob["vertical_speed_mps"])
+        out = {"dir": ob["dir"]}
+        at_wall = (ob["x_m"] >= self.pool_m - 0.3 and ob["dir"] == 1) or (ob["x_m"] <= 0.3 and ob["dir"] == -1)
+        if at_wall:
+            out["dir"] = -ob["dir"]
+        if ob["turning"]:
+            out.update({"f": 0.0, "a": 0.0})
+        else:
+            err = self.speed_mps - v
+            a = min(1.0, max(0.0, 0.25 + 1.2 * err)) if err > 0.0 else 0.0
+            out.update({"f": self.kick_f if a > 0.0 else 0.0, "a": a})
+        return out

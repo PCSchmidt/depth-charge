@@ -64,17 +64,23 @@ def neutral_depth(v_lung_surface: float, lead_kg: float, rho: float = RHO_SEA) -
     return (P0 / u - P0) / (rho * G)
 
 
-def kick_effectiveness(f: float) -> float:
+# Per-discipline stroke: (optimal frequency Hz, log-width, thrust scale). Design values: arm pulls and breaststroke are slower
+# and weaker than a fin kick. CWT, DYN and STA use the fin kick.
+STROKES = {"CWT": (0.8, 0.35, 1.0), "DYN": (0.8, 0.35, 1.0), "STA": (0.8, 0.35, 1.0), "FIM": (0.35, 0.35, 0.75), "CNF": (0.3, 0.35, 0.6)}
+
+
+def kick_effectiveness(f: float, f_opt: float = F_OPT, width: float = F_WIDTH) -> float:
     """Log-normal peak in kick frequency: too slow does little, too fast is wasted (no button-mashing exploit)."""
     if f <= 0.0:
         return 0.0
-    x = math.log(f / F_OPT)
-    return math.exp(-x * x / (2.0 * F_WIDTH * F_WIDTH))
+    x = math.log(f / f_opt)
+    return math.exp(-x * x / (2.0 * width * width))
 
 
-def kick_thrust(t_max: float, f: float, amplitude: float, fatigue: float) -> float:
+def kick_thrust(t_max: float, f: float, amplitude: float, fatigue: float, stroke: tuple = STROKES["CWT"]) -> float:
     """Thrust magnitude in N."""
-    return t_max * amplitude * (f / F_OPT) * kick_effectiveness(f) * (1.0 - 0.35 * fatigue)
+    f_opt, width, scale = stroke
+    return t_max * scale * amplitude * (f / f_opt) * kick_effectiveness(f, f_opt, width) * (1.0 - 0.35 * fatigue)
 
 
 def drag(v: float, cda: float, rho: float = RHO_SEA) -> float:

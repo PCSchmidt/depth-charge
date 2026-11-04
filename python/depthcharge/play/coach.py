@@ -41,3 +41,23 @@ def coach(ob: dict, announced_m: float, neutral_m: float | None) -> dict:
         return {"title": "5. Kick up", "urgent": False, "text": f"Swim up now: HOLD K (hard) or Space. You are heavy at this depth, so it takes a few seconds to start rising. Above about {zn:.0f} m you float up on your own."}
     return {"title": "5. Float up", "urgent": False,
             "text": "You are positively buoyant now: you rise by yourself. Relax; kick only if you slow down. Hold B once your head is out."}
+
+
+def coach_dyn(ob: dict, goal_m: float, pool_m: float) -> dict:
+    """Hints for Dynamic apnea in a pool: swim, turn at the walls, finish once the announced distance is covered."""
+    if ob["ended"]:
+        return {"title": "Swim over", "text": "Read the debrief below the gauges.", "urgent": False}
+    if ob["surfaced"]:
+        k, what = KEYS[ob["protocol_next"]]
+        return {"title": "Surface protocol", "urgent": ob["protocol_left_s"] < 6.0,
+                "text": f"Hold B to breathe, then press {k} to {what} ({ob['protocol_left_s']:.0f} s left). Steps in order: M, then O, then V."}
+    if ob["turning"]:
+        return {"title": "Turning", "urgent": False, "text": f"Turning at the wall ({ob['turn_left_s']:.1f} s), then hold K or Space to push off and swim back."}
+    if ob["distance_m"] >= goal_m:
+        return {"title": "Goal reached", "urgent": ob["urge"] > 0.8,
+                "text": "You have covered the announced distance. Press F to stop and surface, then breathe (B) and do the surface protocol (M, O, V). Swimming further adds to your score but risks a blackout."}
+    at_wall = (ob["x_m"] >= pool_m - 0.3 and ob["dir"] == 1) or (ob["x_m"] <= 0.3 and ob["dir"] == -1)
+    if at_wall and ob["t"] > 2.0:
+        return {"title": "Wall", "urgent": False, "text": "You are at the wall. Press T to turn and push off."}
+    return {"title": "Swim", "urgent": ob["urge"] > 0.8,
+            "text": f"Hold Space (or K for harder) to swim. {ob['distance_m']:.0f} of {goal_m:.0f} m. Press T at each wall to turn. Calm, steady swimming saves oxygen."}

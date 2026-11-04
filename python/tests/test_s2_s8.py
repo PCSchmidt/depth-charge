@@ -73,6 +73,6 @@ def test_tampered_logs_are_rejected():
 
 
 def test_scenario_validation():
-    for bad in (dict(announced_depth_m=80), dict(lead_kg=20), dict(archetype="x"), dict(dt=1.0), dict(discipline="DYN")):
+    for bad in (dict(announced_depth_m=80), dict(lead_kg=20), dict(archetype="x"), dict(dt=1.0), dict(discipline="XYZ")):
         with pytest.raises(ValueError):
             Scenario(**bad).validate()
