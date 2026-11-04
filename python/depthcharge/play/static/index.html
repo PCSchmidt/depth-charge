@@ -57,7 +57,7 @@
     <tr><td><kbd>Space</kbd></td><td>kick (hold) &nbsp; <kbd>K</kbd> harder (hold with or instead of Space)</td></tr>
     <tr><td><kbd>E</kbd></td><td>equalize ears when the gauge is green</td></tr>
     <tr><td><kbd>G</kbd></td><td>grab the tag (at the announced depth)</td></tr>
-    <tr><td><kbd>T</kbd></td><td>turn head-down / head-up (3 s)</td></tr>
+    <tr><td><kbd>T</kbd></td><td>turn head-down / head-up (1.5 s), then hold K to swim</td></tr>
     <tr><td><kbd>B</kbd></td><td>breathe (at the surface)</td></tr>
     <tr><td><kbd>M</kbd> <kbd>O</kbd> <kbd>V</kbd></td><td>surface protocol: mask, OK sign, speak</td></tr>
     <tr><td><kbd>P</kbd></td><td>pause</td></tr>
@@ -136,7 +136,7 @@ function render() {
   const o = S.observation, sc = S.scenario;
   const min = Math.floor(o.t / 60), sec = (o.t % 60).toFixed(0).padStart(2, "0");
   $("hud").innerHTML = `depth <b>${o.depth_m.toFixed(1)}</b> m<br>speed ${Math.abs(o.vertical_speed_mps).toFixed(2)} m/s ${o.vertical_speed_mps > 0.05 ? "&darr;" : o.vertical_speed_mps < -0.05 ? "&uarr;" : ""}<br>time ${min}:${sec}<br>tag ${sc.announced_depth_m} m ${o.has_tag ? "<span class=good>(got it)</span>" : ""}<br>` +
-    (o.net_up_n > 3 ? "<span class=dim>floating</span>" : o.net_up_n < -3 ? "<span class=dim>sinking</span>" : "<span class=dim>neutral</span>") + (o.turning ? " &middot; turning" : "");
+    (o.net_up_n > 3 ? "<span class=dim>floating</span>" : o.net_up_n < -3 ? "<span class=dim>sinking</span>" : "<span class=dim>neutral</span>") + (o.turning ? ` &middot; turning ${o.turn_left_s.toFixed(1)} s` : "");
   const ex = o.ear_excess, pct = Math.min(1, Math.max(0, ex / 0.2)) * 100;
   $("earmark").style.bottom = `calc(${pct}% - 1px)`;
   $("urgefill").style.height = Math.min(100, o.urge / 1.2 * 100) + "%";

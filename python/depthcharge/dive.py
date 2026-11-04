@@ -21,6 +21,7 @@ C0 = 40.0                    # mmHg-like CO2 tension at the start
 K_C = 0.018                  # CO2 tension rise per mL of O2 consumed
 C_WORK = 1500.0              # extra mL/min of O2 per unit effort squared (effort = amplitude * kick frequency)
 SURFACE_REFILL = 60.0        # mL/s of O2 store recovered while breathing at the surface
+TURN_S = 1.5                    # s: no thrust while the diver rotates (playtest: 3 s felt slow)
 EAR_PAIN = 0.12              # ambient/ear pressure ratio excess at which equalizing hurts
 EAR_LOCK = 0.20              # beyond this the tubes lock: equalizing is impossible
 EAR_INJURY = 0.35            # beyond this the dive ends (barotrauma)
@@ -144,7 +145,7 @@ class Dive:
                 "ear_excess": self.ear_excess(), "has_tag": self.has_tag, "contractions": self.contractions,
                 "urge": min(1.2, max(0.0, (self.co2 - C0) / (arch.c_break_mmhg - C0))),
                 "tunnel_vision": min(1.0, max(0.0, (0.09 - self.pao2()) / 0.05)), "net_up_n": self.net_up_n(),
-                "turning": self.turn_lock > 0.0, "surfaced": self.surfaced_at is not None,
+                "turning": self.turn_lock > 0.0, "turn_left_s": round(self.turn_lock, 2), "surfaced": self.surfaced_at is not None,
                 "protocol_next": step, "protocol_left_s": left, "stress": self.stress,
                 "ended": self.ended, "outcome": self.outcome}
 
@@ -176,7 +177,7 @@ class Dive:
         c = self.controls
         want_dir = 1 if c["dir"] >= 0 else -1
         if want_dir != self.dir and self.turn_lock <= 0.0:
-            self.dir, self.turn_lock = want_dir, 3.0
+            self.dir, self.turn_lock = want_dir, TURN_S
         self.turn_lock = max(0.0, self.turn_lock - dt)
         turning = self.turn_lock > 0.0
         on_surface = self.z <= 0.3

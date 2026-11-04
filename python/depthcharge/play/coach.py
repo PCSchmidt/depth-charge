@@ -34,10 +34,10 @@ def coach(ob: dict, announced_m: float, neutral_m: float | None) -> dict:
         return {"title": "2. Free fall", "urgent": False,
                 "text": "You are sinking by yourself. Let go of Space, stay streamlined and relax: calm saves oxygen. Press E whenever the ear gauge is green."}
     if ob["dir"] == 1 and ob["has_tag"]:
-        return {"title": "4. Turn", "urgent": False, "text": "You have the tag. Press T to turn head-up; turning takes 3 seconds with no thrust."}
+        return {"title": "4. Turn", "urgent": False, "text": "You have the tag. Press T to turn head-up (about 1.5 s, no thrust). Then HOLD K or Space to swim up."}
     if ob["turning"]:
-        return {"title": "4. Turning", "urgent": False, "text": "Turning... wait for it."}
+        return {"title": "4. Turning", "urgent": False, "text": f"Turning ({ob['turn_left_s']:.1f} s)... then HOLD K or Space to swim up."}
     if z > zn:
-        return {"title": "5. Kick up", "urgent": False, "text": f"Hold Space to swim up. Above about {zn:.0f} m you will float up on your own."}
+        return {"title": "5. Kick up", "urgent": False, "text": f"Swim up now: HOLD K (hard) or Space. You are heavy at this depth, so it takes a few seconds to start rising. Above about {zn:.0f} m you float up on your own."}
     return {"title": "5. Float up", "urgent": False,
             "text": "You are positively buoyant now: you rise by yourself. Relax; kick only if you slow down. Hold B once your head is out."}
