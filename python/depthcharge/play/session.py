@@ -56,6 +56,7 @@ class Session:
         out = {"observation": ob, "scenario": {"announced_depth_m": self.sc.announced_depth_m, "archetype": self.sc.archetype, "lead_kg": self.sc.lead_kg,
                                                  "dt": self.sc.dt, "seed": self.sc.seed, "neutral_depth_m": self.neutral_m},
                "events": [e for e in d.events if not e[1].startswith("eq_")][-6:], "eq": {"ok": d.eq_ok, "failed": sum(1 for e in d.events if e[1] == "eq_failed")},
+               "last_eq": next(([e[0], e[1]] for e in reversed(d.events) if e[1].startswith("eq_")), None),
                "protocol": [list(p) for p in PROTOCOL]}
         if self.guided:
             out["coach"] = coach(ob, self.sc.announced_depth_m, self.neutral_m)

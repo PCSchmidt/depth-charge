@@ -49,6 +49,7 @@
   <div class="dim">A fixed first dive with step-by-step hints and a ghost diver to race.</div>
   <details><summary class="dim">What is this game?</summary><div class="card">Constant Weight: swim down a line on one breath, grab a tag at the depth you announced, turn, swim back, and pass the surface protocol. Your body is the resource: oxygen runs out (you cannot see it), the urge to breathe rises (you can feel it), your ears need equalizing as pressure builds, and your weighting decides when you start to fall by yourself. A blackout is a failure, not a goal. The translucent diver is a scripted ghost playing the same dive.</div></details>
 
+  <div id="eqflash" class="card" hidden style="font-weight:bold"></div>
   <div id="coachBox" class="card" hidden><b id="coachTitle"></b><div id="coachText"></div></div>
 
   <h2>Controls</h2>
@@ -80,7 +81,7 @@
 "use strict";
 const $ = id => document.getElementById(id);
 const cv = $("cv"), ctx = cv.getContext("2d");
-let lastT = 0, S = null, ghost = [], running = false, paused = false, busy = false, speed = 1, shake = 0;
+let lastEqT = null, eqShownAt = 0, lastT = 0, S = null, ghost = [], running = false, paused = false, busy = false, speed = 1, shake = 0;
 const keys = new Set(); let want = { dir: 1 }, pulses = {};
 
 async function api(method, path, body) {
@@ -93,7 +94,7 @@ addEventListener("resize", resize);
 async function newDive(body) {
   try {
     const st = await api("POST", "/api/new", body); ghost = st.ghost || []; speed = +$("speed").value;
-    want = { dir: 1 }; pulses = {}; paused = false; running = true; lastT = 0; ingest(st); $("start").textContent = "Restart"; if (document.activeElement) document.activeElement.blur(); loop();
+    want = { dir: 1 }; pulses = {}; lastEqT = null; paused = false; running = true; lastT = 0; ingest(st); $("start").textContent = "Restart"; if (document.activeElement) document.activeElement.blur(); loop();
   } catch (e) { $("log").textContent = "error: " + e.message; }
 }
 $("guided").onclick = () => newDive({ guided: true });
@@ -143,6 +144,13 @@ function render() {
   const cb = $("coachBox");
   if (S.coach) { cb.hidden = false; cb.className = "card" + (S.coach.urgent ? " urgent" : ""); cb.style.borderColor = S.coach.urgent ? "#ff6b6b" : "#ffd166"; $("coachTitle").textContent = S.coach.title; $("coachText").textContent = S.coach.text; } else cb.hidden = true;
   $("log").textContent = S.events.map(([t, k]) => `${t.toFixed(0)} s  ${k}`).join("\n") + `\nequalizations ${S.eq.ok} ok, ${S.eq.failed} failed`;
+  const le = S.last_eq, fl = $("eqflash");
+  if (le && le[0] !== lastEqT) {
+    lastEqT = le[0]; eqShownAt = performance.now();
+    const M = { eq_ok: ["Ears equalized.", "#2d9d63"], eq_failed: ["Equalize FAILED. Pressure is still building: try again.", "#ff6b6b"], eq_early: ["Too early: the ear gauge was still in the grey zone, press wasted.", "#b8860b"], eq_locked: ["Ears are locked. Rise a little, then try again.", "#ff6b6b"] }[le[1]] || [le[1], "#888"];
+    fl.textContent = M[0]; fl.style.borderColor = M[1];
+  }
+  fl.hidden = !(le && performance.now() - eqShownAt < 2500) || o.ended;
   const ev = S.events.length ? S.events[S.events.length - 1][1] : "";
   const toast = $("toast"); toast.hidden = !(o.contractions && !o.ended); toast.textContent = o.contractions ? "Contractions: your body is asking for air." : "";
   shake = o.contractions ? 1 + o.urge * 2 : 0;
